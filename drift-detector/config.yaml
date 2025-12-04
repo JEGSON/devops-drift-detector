@@ -1,0 +1,42 @@
+aws:
+  region: us-east-1
+  profile: default
+
+
+terraform:
+  environments:
+    - name: dev
+      path: /Users/wealth/devops-drift-detector/terraform/environments/dev
+      enabled: true
+
+
+
+detection:
+  check_interval_minutes: 6
+
+  ignore_resources: []
+
+  ignore_attributes:
+    - "tags.LastModified"
+    - "metadata"
+
+
+reporting:    
+
+  formats:
+    - console
+    - json  
+
+  output_dir: ./reports  
+
+
+  min_severity: info
+
+
+alerting:
+  enabled: false  
+ 
+    
+
+    
+
