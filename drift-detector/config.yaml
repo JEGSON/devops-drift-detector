@@ -1,40 +1,40 @@
+# Drift Detector Configuration
+
+# AWS Configuration
 aws:
   region: us-east-1
-  profile: default
+  profile: default  # This will be ignored in CI (uses GitHub secrets instead)
 
-
+# Terraform Configuration
 terraform:
   environments:
     - name: dev
-      path: /Users/wealth/devops-drift-detector/terraform/environments/dev
+      path: ../terraform/environments/dev
       enabled: true
 
-
-
+# Detection Settings
 detection:
-  check_interval_minutes: 6
-
+  check_interval_hours: 6  # Changed from minutes to hours
+  
   ignore_resources: []
-
+  
   ignore_attributes:
     - "tags.LastModified"
     - "metadata"
 
-
-reporting:    
-
+# Reporting
+reporting:
   formats:
     - console
-    - json  
+    - json
+  
+  output_dir: ./reports
+  
+  min_severity: info 
 
-  output_dir: ./reports  
-
-
-  min_severity: info
-
-
+# Alerting 
 alerting:
-  enabled: false  
+  enabled: false
  
     
 

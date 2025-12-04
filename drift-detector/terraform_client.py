@@ -8,11 +8,17 @@ from pathlib import Path
 
 class TerraformClient:
 
-    def __init__(self, working_dir: Path):
-        self. working_dir = Path(working_dir)
+    def __init__(self, working_dir: str):
 
-        if not self.working_dir.is_dir():
-            raise ValueError(f"Terraform directory {working_dir} does not exist.")
+        script_dir = Path(__file__).parent.resolve()
+        if not os.path.isabs(working_dir):
+            self.working_dir = (script_dir / working_dir).resolve()
+        else:
+            self.working_dir = Path(working_dir).resolve()
+        
+        if not self.working_dir.exists():
+            raise ValueError(f"Terraform directory does not exist: {self.working_dir}")
+    
         
     def init(self) -> Tuple[bool, str]:
 
