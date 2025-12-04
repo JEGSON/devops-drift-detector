@@ -3,7 +3,7 @@ resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr
   enable_dns_hostnames = true
   enable_dns_support   = true
-  
+
   tags = {
     Name        = "${var.environment}-vpc"
     Environment = var.environment
@@ -14,7 +14,7 @@ resource "aws_vpc" "main" {
 # Internet Gateway
 resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
-  
+
   tags = {
     Name        = "${var.environment}-igw"
     Environment = var.environment
@@ -27,7 +27,7 @@ resource "aws_subnet" "public" {
   cidr_block              = var.public_subnet_cidr
   availability_zone       = var.availability_zone
   map_public_ip_on_launch = true
-  
+
   tags = {
     Name        = "${var.environment}-public-subnet"
     Environment = var.environment
@@ -38,12 +38,12 @@ resource "aws_subnet" "public" {
 # Route Table for Public Subnet
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
-  
+
   route {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.main.id
   }
-  
+
   tags = {
     Name        = "${var.environment}-public-rt"
     Environment = var.environment
@@ -61,7 +61,7 @@ resource "aws_security_group" "web" {
   name        = "${var.environment}-web-sg"
   description = "Security group for web servers"
   vpc_id      = aws_vpc.main.id
-  
+
   ingress {
     description = "HTTP from anywhere"
     from_port   = 80
@@ -69,15 +69,15 @@ resource "aws_security_group" "web" {
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
-  
+
   ingress {
     description = "SSH from anywhere (be careful!)"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]  # In production, restrict this to your IP
+    cidr_blocks = ["0.0.0.0/0"] # In production, restrict this to your IP
   }
-  
+
   egress {
     description = "Allow all outbound"
     from_port   = 0
@@ -85,7 +85,7 @@ resource "aws_security_group" "web" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-  
+
   tags = {
     Name        = "${var.environment}-web-sg"
     Environment = var.environment
