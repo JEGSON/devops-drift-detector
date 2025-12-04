@@ -45,4 +45,4 @@ module "compute" {
   subnet_id         = module.networking.public_subnet_id
   security_group_id = module.networking.web_security_group_id
   account_id        = data.aws_caller_identity.current.account_id
-}
+}# Test change
