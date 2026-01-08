@@ -1,0 +1,125 @@
+Acquiring state lock. This may take a few moments...
+data.aws_caller_identity.current: Reading...
+module.compute.data.aws_ami.amazon_linux_2: Reading...
+module.networking.aws_vpc.main: Refreshing state... [id=vpc-078c017d20cda2d6a]
+data.aws_caller_identity.current: Read complete after 0s [id=318112817098]
+module.compute.aws_s3_bucket.app_data: Refreshing state... [id=drift-detector-dev-data-318112817098]
+module.compute.data.aws_ami.amazon_linux_2: Read complete after 1s [id=ami-0fcb14c72c80bdef2]
+module.networking.aws_internet_gateway.main: Refreshing state... [id=igw-022215d571c296ed1]
+module.networking.aws_subnet.public: Refreshing state... [id=subnet-08e72a5b6d88a07da]
+module.networking.aws_security_group.web: Refreshing state... [id=sg-0317bef7b0f74687a]
+module.networking.aws_route_table.public: Refreshing state... [id=rtb-08168196fb5facae3]
+module.compute.aws_instance.web: Refreshing state... [id=i-05852f22d01c01504]
+module.networking.aws_route_table_association.public: Refreshing state... [id=rtbassoc-00b1fa20a996b5969]
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+-/+ destroy and then create replacement
+
+Terraform will perform the following actions:
+
+  # module.compute.aws_instance.web must be replaced
+-/+ resource "aws_instance" "web" {
+      ~ ami                                  = "ami-0156001f0548e90b1" -> "ami-0fcb14c72c80bdef2" # forces replacement
+      ~ arn                                  = "arn:aws:ec2:us-east-1:318112817098:instance/i-05852f22d01c01504" -> (known after apply)
+      ~ associate_public_ip_address          = true -> (known after apply)
+      ~ availability_zone                    = "us-east-1a" -> (known after apply)
+      ~ cpu_core_count                       = 1 -> (known after apply)
+      ~ cpu_threads_per_core                 = 2 -> (known after apply)
+      ~ disable_api_stop                     = false -> (known after apply)
+      ~ disable_api_termination              = false -> (known after apply)
+      ~ ebs_optimized                        = false -> (known after apply)
+      + enable_primary_ipv6                  = (known after apply)
+      - hibernation                          = false -> null
+      + host_id                              = (known after apply)
+      + host_resource_group_arn              = (known after apply)
+      + iam_instance_profile                 = (known after apply)
+      ~ id                                   = "i-05852f22d01c01504" -> (known after apply)
+      ~ instance_initiated_shutdown_behavior = "stop" -> (known after apply)
+      + instance_lifecycle                   = (known after apply)
+      ~ instance_state                       = "running" -> (known after apply)
+      ~ ipv6_address_count                   = 0 -> (known after apply)
+      ~ ipv6_addresses                       = [] -> (known after apply)
+      + key_name                             = (known after apply)
+      ~ monitoring                           = false -> (known after apply)
+      + outpost_arn                          = (known after apply)
+      + password_data                        = (known after apply)
+      + placement_group                      = (known after apply)
+      ~ placement_partition_number           = 0 -> (known after apply)
+      ~ primary_network_interface_id         = "eni-0171afa745883680e" -> (known after apply)
+      ~ private_dns                          = "ip-10-0-1-247.ec2.internal" -> (known after apply)
+      ~ private_ip                           = "10.0.1.247" -> (known after apply)
+      ~ public_dns                           = "ec2-34-205-252-165.compute-1.amazonaws.com" -> (known after apply)
+      ~ public_ip                            = "34.205.252.165" -> (known after apply)
+      ~ secondary_private_ips                = [] -> (known after apply)
+      ~ security_groups                      = [] -> (known after apply)
+      + spot_instance_request_id             = (known after apply)
+        tags                                 = {
+            "Environment" = "dev"
+            "Name"        = "dev-web-server"
+            "Project"     = "drift-detector"
+        }
+      ~ tenancy                              = "default" -> (known after apply)
+      + user_data_base64                     = (known after apply)
+        # (8 unchanged attributes hidden)
+
+      - capacity_reservation_specification {
+          - capacity_reservation_preference = "open" -> null
+        }
+
+      - cpu_options {
+          - core_count       = 1 -> null
+          - threads_per_core = 2 -> null
+        }
+
+      - credit_specification {
+          - cpu_credits = "unlimited" -> null
+        }
+
+      - enclave_options {
+          - enabled = false -> null
+        }
+
+      - maintenance_options {
+          - auto_recovery = "default" -> null
+        }
+
+      - metadata_options {
+          - http_endpoint               = "enabled" -> null
+          - http_protocol_ipv6          = "disabled" -> null
+          - http_put_response_hop_limit = 1 -> null
+          - http_tokens                 = "optional" -> null
+          - instance_metadata_tags      = "disabled" -> null
+        }
+
+      - private_dns_name_options {
+          - enable_resource_name_dns_a_record    = false -> null
+          - enable_resource_name_dns_aaaa_record = false -> null
+          - hostname_type                        = "ip-name" -> null
+        }
+
+      - root_block_device {
+          - delete_on_termination = true -> null
+          - device_name           = "/dev/xvda" -> null
+          - encrypted             = false -> null
+          - iops                  = 100 -> null
+          - tags                  = {} -> null
+          - tags_all              = {} -> null
+          - throughput            = 0 -> null
+          - volume_id             = "vol-0984585c922d5d296" -> null
+          - volume_size           = 8 -> null
+          - volume_type           = "gp2" -> null
+        }
+    }
+
+Plan: 1 to add, 0 to change, 1 to destroy.
+
+Changes to Outputs:
+  ~ web_server_public_ip = "34.205.252.165" -> (known after apply)
+  ~ web_server_url       = "http://34.205.252.165" -> (known after apply)
+
+─────────────────────────────────────────────────────────────────────────────
+
+Note: You didn't use the -out option to save this plan, so Terraform can't
+guarantee to take exactly these actions if you run "terraform apply" now.
+Releasing state lock. This may take a few moments...

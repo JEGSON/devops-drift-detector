@@ -45,13 +45,9 @@ def detect_drift_for_environment(env_config: dict, config: dict, project_root: P
         print(f"   ❌ Terraform plan failed: {stderr}")
         return None
     
-    # Parse plan output
-    plan_result = tf_client.parse_plan_output(stdout)
-    plan_result['drift_detected'] = (exit_code == 2)
-    
     # Analyze drift
     analyzer = DriftAnalyzer(config)
-    drift_report = analyzer.analyze_drift(env_name, plan_result)
+    drift_report = analyzer.analyze_drift(env_name, stdout, exit_code)
     
     return drift_report
 

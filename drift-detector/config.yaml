@@ -1,22 +1,26 @@
-# Drift Detector Configuration
+# Drift Detector Configuration (AWS Free Tier Safe)
 
 # AWS Configuration
 aws:
   region: us-east-1
-  profile: default  # This will be ignored in CI (uses GitHub secrets instead)
+  profile: default   # Ignored in CI, safe for local use
 
 # Terraform Configuration
 terraform:
   environments:
     - name: dev
-      path: ../terraform/environments/dev
+      path: terraform/environments/dev
       enabled: true
 
 # Detection Settings
 detection:
-  check_interval_hours: 6  # Changed from minutes to hours
+  # Reduced frequency to avoid unnecessary API calls
+  check_interval_hours: 12
   
-  ignore_resources: []
+  # Explicitly ignore resources that may generate noise or cost
+  ignore_resources:
+    - "aws_cloudwatch_log_group"
+    - "aws_cloudwatch_metric_alarm"
   
   ignore_attributes:
     - "tags.LastModified"
@@ -30,13 +34,42 @@ reporting:
   
   output_dir: ./reports
   
-  min_severity: info 
+  # Reduce noise – only meaningful drift
+  min_severity: warning
 
-# Alerting 
+# Alerting (Disabled to avoid SNS / email costs)
 alerting:
   enabled: false
- 
-    
 
-    
+# Drift Policies (Free Tier Aware)
+drift_policies:
 
+  # Acceptable drift (common + cost-safe)
+  allowed_drift:
+    - resource_type: "aws_instance"
+      attributes:
+        - "tags.*"
+      reason: "Tag updates are common and safe"
+
+    - resource_type: "aws_autoscaling_group"
+      attributes:
+        - "desired_capacity"
+      reason: "ASG may scale within Free Tier limits"
+
+    - resource_type: "aws_s3_bucket"
+      attributes:
+        - "tags.*"
+        - "lifecycle_rule"
+      reason: "Lifecycle and tags change without risk"
+
+  # Critical resources (still protected, but Free Tier friendly)
+  critical_resources:
+    - "aws_iam_role"
+    - "aws_iam_policy"
+    - "aws_security_group"
+    - "aws_kms_key"
+
+  # Explicitly ignored (to prevent noise & cost)
+  ignored_resources:
+    - "aws_s3_bucket.logs"
+    - "aws_instance.bastion"

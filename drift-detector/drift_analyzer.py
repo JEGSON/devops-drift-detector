@@ -1,96 +1,148 @@
-
 from typing import Dict, List
 from datetime import datetime
 
+from policy_engine import PolicyEngine
+
 
 class DriftAnalyzer:
-    """Analyze drift detection results"""
-    
+    """Analyze Terraform drift and apply policy decisions"""
+
     def __init__(self, config: Dict):
         self.config = config
-        self.ignore_attributes = config.get('detection', {}).get('ignore_attributes', [])
-    
-    def analyze_drift(self, environment: str, plan_result: Dict) -> Dict:
+        self.policy_engine = PolicyEngine(config)
+
+    def analyze_drift(self, environment: str, plan_output: str, exit_code: int) -> Dict:
         """
-        Analyze drift detection results and categorize by severity
-        
-        Returns a structured report
+        Main drift analysis entry point
         """
-        # Make sure drift_detected exists
-        drift_detected = plan_result.get('drift_detected', False)
-        
-        drift_report = {
+        raw_drift = self._parse_plan_output(plan_output)
+
+        filtered_drift = self.policy_engine.filter_drift(raw_drift)
+
+        severity = self._calculate_severity(filtered_drift)
+
+        return {
             'environment': environment,
-            'timestamp': datetime.now().isoformat(),
-            'drift_detected': drift_detected,  # FIXED: Ensure this is always present
-            'summary': plan_result.get('summary', 'No changes detected'),
-            'details': {
-                'resources_added': plan_result.get('resources_to_add', []),
-                'resources_modified': plan_result.get('resources_to_change', []),
-                'resources_deleted': plan_result.get('resources_to_destroy', [])
-            },
-            'severity': self._calculate_severity(plan_result),
-            'recommendations': self._generate_recommendations(plan_result, drift_detected)
+            'timestamp': datetime.utcnow().isoformat(),
+            'drift_detected': exit_code == 2,
+            'severity': severity,
+            'raw_drift': raw_drift,
+            'filtered_drift': filtered_drift,
+            'policy_decisions': filtered_drift.get('policy_decisions', []),
+            'recommendations': self._generate_recommendations(filtered_drift, severity)
         }
-        
-        return drift_report
-    
-    def _calculate_severity(self, plan_result: Dict) -> str:
+
+    def _parse_plan_output(self, output: str) -> Dict:
         """
-        Calculate severity based on type of drift
-        
-        Returns: 'critical', 'warning', or 'info'
+        Parse terraform plan output (enhanced for modern Terraform versions)
         """
-        num_deleted = len(plan_result.get('resources_to_destroy', []))
-        num_modified = len(plan_result.get('resources_to_change', []))
-        num_added = len(plan_result.get('resources_to_add', []))
-        
-        # Deletions are critical
-        if num_deleted > 0:
+        drift = {
+            'resources_to_add': [],
+            'resources_to_change': [],
+            'resources_to_destroy': []
+        }
+
+        lines = output.splitlines()
+        for i, line in enumerate(lines):
+            line = line.strip()
+            if not line.startswith('# '):
+                continue
+            
+            # Remove '# ' prefix
+            content = line[2:].strip()
+
+            if 'will be created' in content:
+                resource = content.split('will be')[0].strip()
+                drift['resources_to_add'].append({'address': resource})
+
+            elif 'will be destroyed' in content:
+                resource = content.split('will be')[0].strip()
+                drift['resources_to_destroy'].append({'address': resource})
+
+            elif 'will be updated in-place' in content or 'must be replaced' in content:
+                is_replacement = 'must be replaced' in content
+                separator = 'must be' if is_replacement else 'will be'
+                resource = content.split(separator)[0].strip()
+                
+                # Attempt to extract type
+                rtype = resource.split('.')[-2] if len(resource.split('.')) >= 2 else 'unknown'
+                
+                # Try to get precise type from the next line
+                # e.g. -/+ resource "aws_instance" "web" {
+                if i + 1 < len(lines):
+                    next_line = lines[i+1].strip()
+                    parts = next_line.split()
+                    if len(parts) >= 3 and parts[1] == 'resource':
+                         rtype = parts[2].strip('"')
+
+                changes = []
+                j = i + 1
+                while j < len(lines):
+                    next_line = lines[j].strip()
+                    if next_line.startswith('# '):
+                        break
+                    
+                    # Check for attribute changes (~, +, -) ignoring the resource def line
+                    if (next_line.startswith('~') or next_line.startswith('+') or next_line.startswith('-')) and ('=' in next_line or '->' in next_line):
+                         # Skip the resource declaration line itself (containing "resource")
+                         if ' resource ' not in next_line:
+                            clean_line = next_line.lstrip('~+- ')
+                            attr = clean_line.split('=')[0].strip()
+                            changes.append({
+                                'attribute': attr,
+                                'change': next_line
+                            })
+                    j += 1
+
+                drift['resources_to_change'].append({
+                    'address': resource,
+                    'type': rtype,
+                    'changes': changes,
+                    'is_replacement': is_replacement,
+                    'severity': 'critical' if is_replacement else 'warning'
+                })
+
+        return drift
+
+    def _calculate_severity(self, filtered_drift: Dict) -> str:
+        """
+        Severity based on filtered (policy-aware) drift
+        """
+        if filtered_drift.get('resources_to_destroy'):
             return 'critical'
-        
-        # Many modifications are warnings
-        if num_modified > 3:
+
+        for res in filtered_drift.get('resources_to_change', []):
+            if res.get('severity') == 'critical':
+                return 'critical'
+
+        if filtered_drift.get('resources_to_change'):
             return 'warning'
-        
-        # Small changes or additions are info
-        if num_modified > 0 or num_added > 0:
-            return 'warning'
-        
+
+        if filtered_drift.get('resources_to_add'):
+            return 'info'
+
         return 'info'
-    
-    def _generate_recommendations(self, plan_result: Dict, drift_detected: bool) -> List[str]:
-        """Generate actionable recommendations"""
+
+    def _generate_recommendations(self, filtered_drift: Dict, severity: str) -> List[str]:
         recommendations = []
-        
-        if not drift_detected:
-            recommendations.append("✅ No drift detected. Infrastructure matches Terraform state.")
-            return recommendations
-        
-        num_modified = len(plan_result.get('resources_to_change', []))
-        num_added = len(plan_result.get('resources_to_add', []))
-        num_deleted = len(plan_result.get('resources_to_destroy', []))
-        
-        if num_modified > 0:
+
+        if severity == 'info':
+            recommendations.append("✅ No critical drift detected.")
+
+        if filtered_drift.get('resources_to_change'):
             recommendations.append(
-                f"⚠️  {num_modified} resource(s) modified outside Terraform. "
-                "Run 'terraform apply' to restore desired state."
+                "⚠️ Some resources drifted outside Terraform. "
+                "Review and run `terraform apply` if needed."
             )
-        
-        if num_added > 0:
+
+        if filtered_drift.get('resources_to_destroy'):
             recommendations.append(
-                f"ℹ️  {num_added} resource(s) will be created. "
-                "Review if these are intentional additions."
+                "🚨 Critical drift detected: resources were deleted manually. "
+                "Immediate action required."
             )
-        
-        if num_deleted > 0:
-            recommendations.append(
-                f"🚨 {num_deleted} resource(s) were deleted manually! "
-                "This is CRITICAL. Run 'terraform apply' immediately to recreate."
-            )
-        
+
         recommendations.append(
-            "\n💡 Best practice: Always make infrastructure changes through Terraform, never manually."
+            "💡 Best practice: manage infrastructure changes only through Terraform."
         )
-        
+
         return recommendations
