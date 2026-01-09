@@ -10,7 +10,7 @@ terraform {
   
   # Configure remote backend - UPDATE THESE VALUES from Step 3
   backend "s3" {
-    bucket         = "terraform-state-drift-detector-318112817098"  
+    bucket         = "terraform-state-drift-detector-1767985182"  
     key            = "dev/terraform.tfstate"
     region         = "us-east-1"
     dynamodb_table = "terraform-locks-drift-detector"                 

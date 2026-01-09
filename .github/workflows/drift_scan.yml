@@ -1,0 +1,66 @@
+name: Terraform Drift Detection
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # Run every 6 hours
+  workflow_dispatch:       # Allow manual trigger
+
+jobs:
+  drift_scan:
+    name: Run Drift Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write      # Required for OIDC AWS Auth
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f drift-detector/requirements.txt ]; then pip install -r drift-detector/requirements.txt; fi
+          # Ensure modules are in python path
+          export PYTHONPATH=$PYTHONPATH:.
+
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.0
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+          # Recommended: Use OIDC (role-to-assume) instead of keys
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }} 
+          # Fallback: Access Keys (if not using OIDC)
+          # aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          # aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Create Config Files
+        run: |
+          # Create dummy .env or populate from secrets
+          echo "SLACK_WEBHOOK_URL=${{ secrets.SLACK_WEBHOOK_URL }}" >> config/.env
+          echo "SNS_TOPIC_ARN=${{ secrets.SNS_TOPIC_ARN }}" >> config/.env
+
+      - name: Run Drift Detector
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          python enhanced_drift_detector.py --environment production --terraform-dir ./terraform/environments/prod --no-notify
+
+      - name: Upload Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: drift-report
+          path: reports/*.html
+          retention-days: 7

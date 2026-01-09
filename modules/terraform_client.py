@@ -10,9 +10,8 @@ class TerraformClient:
 
     def __init__(self, working_dir: str):
 
-        script_dir = Path(__file__).parent.resolve()
         if not os.path.isabs(working_dir):
-            self.working_dir = (script_dir / working_dir).resolve()
+            self.working_dir = Path(working_dir).resolve()
         else:
             self.working_dir = Path(working_dir).resolve()
         

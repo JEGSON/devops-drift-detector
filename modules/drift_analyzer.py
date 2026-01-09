@@ -1,7 +1,7 @@
 from typing import Dict, List
 from datetime import datetime
 
-from policy_engine import PolicyEngine
+from modules.policy_engine import PolicyEngine
 
 
 class DriftAnalyzer:
@@ -125,24 +125,34 @@ class DriftAnalyzer:
 
     def _generate_recommendations(self, filtered_drift: Dict, severity: str) -> List[str]:
         recommendations = []
+        
+        # Success Case
+        if severity == 'info' and not filtered_drift.get('resources_to_change') and not filtered_drift.get('resources_to_destroy'):
+            return ["✅ Infrastructure is in sync. No actions needed."]
 
-        if severity == 'info':
-            recommendations.append("✅ No critical drift detected.")
+        # Handle Modifications (Drift)
+        for res in filtered_drift.get('resources_to_change', []):
+            addr = res.get('address')
+            if res.get('severity') == 'critical':
+                recommendations.append(f"🚨 CRITICAL: {addr} has dangerous modifications.")
+            
+            # Suggest target apply
+            recommendations.append(f"👉 Fix Mod: `terraform apply -target={addr}`")
 
-        if filtered_drift.get('resources_to_change'):
-            recommendations.append(
-                "⚠️ Some resources drifted outside Terraform. "
-                "Review and run `terraform apply` if needed."
-            )
+        # Handle Destructions (Missing Resources)
+        for res in filtered_drift.get('resources_to_destroy', []):
+            addr = res.get('address')
+            recommendations.append(f"🚨 MISSING: {addr} was deleted manually.")
+            recommendations.append(f"👉 Restore: `terraform apply -target={addr}`")
+            
+        # Handle Additions (Untracked Resources - Harder to map back to code unless we know imports)
+        # But we can give generic advice.
+        for res in filtered_drift.get('resources_to_add', []):
+             addr = res.get('address')
+             recommendations.append(f"ℹ️  Unapplied Code: {addr} is in code but not state/cloud.")
+             recommendations.append(f"👉 Apply: `terraform apply -target={addr}`")
 
-        if filtered_drift.get('resources_to_destroy'):
-            recommendations.append(
-                "🚨 Critical drift detected: resources were deleted manually. "
-                "Immediate action required."
-            )
-
-        recommendations.append(
-            "💡 Best practice: manage infrastructure changes only through Terraform."
-        )
-
+        # General Advice
+        recommendations.append("💡 Review changes carefully before applying.")
+        
         return recommendations

@@ -1,0 +1,39 @@
+aws:
+  region: us-east-1
+  profile: default
+
+scanning:
+  schedule: "0 */6 * * *"  # Every 6 hours
+  parallel_checks: 5
+  timeout: 300
+
+severity:
+  critical:
+    - aws_security_group
+    - aws_iam_role
+    - aws_iam_policy
+  high:
+    - aws_db_instance
+    - aws_s3_bucket
+  medium:
+    - aws_instance
+    - aws_lambda_function
+  low:
+    - aws_s3_bucket_object
+
+notifications:
+  slack_webhook: "${SLACK_WEBHOOK_URL}"
+  email_enabled: true
+  sns_topic_arn: "${SNS_TOPIC_ARN}"
+  alert_on_severity:
+    - critical
+    - high
+
+reporting:
+  format: html
+  output_dir: reports
+  retention_days: 90
+
+history:
+  dynamodb_table: terraform-drift-history
+  enabled: true
