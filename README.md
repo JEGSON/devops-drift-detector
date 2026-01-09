@@ -1,700 +1,891 @@
-# DevOps Configuration Drift Detector
+# Enhanced Terraform Drift Detector
 
-A comprehensive Infrastructure-as-Code (IaC) drift detection system built with Terraform and Python, featuring automated CI/CD pipelines for detecting and alerting on manual infrastructure changes.
+> **Enterprise-grade Infrastructure Drift Detection and Monitoring System**
+
+A comprehensive, production-ready Terraform drift detection platform featuring advanced severity scoring, intelligent alerting, visual reporting, automated remediation suggestions, and complete CI/CD integration.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Terraform](https://img.shields.io/badge/terraform-%235835CC.svg?style=flat&logo=terraform&logoColor=white)](https://www.terraform.io/)
+
+---
 
 ## 📋 Table of Contents
 
-- [Overview](#overview)
-- [Architecture](#architecture)
-- [Features](#features)
-- [Prerequisites](#prerequisites)
-- [Project Structure](#project-structure)
-- [Setup Instructions](#setup-instructions)
-- [Usage](#usage)
-- [CI/CD Workflows](#cicd-workflows)
-- [Configuration](#configuration)
-- [How It Works](#how-it-works)
-- [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
+- [Overview](#-overview)
+- [Features](#-features)
+- [Architecture](#-architecture)
+- [Quick Start](#-quick-start)
+- [Prerequisites](#-prerequisites)
+- [Installation](#-installation)
+- [Configuration](#-configuration)
+- [Usage](#-usage)
+- [CI/CD Pipeline](#-cicd-pipeline)
+- [Notifications](#-notifications)
+- [Reporting](#-reporting)
+- [Troubleshooting](#-troubleshooting)
+- [Advanced Topics](#-advanced-topics)
+- [Contributing](#-contributing)
 
 ---
 
 ## 🎯 Overview
 
-Configuration drift occurs when infrastructure resources are modified manually outside of Infrastructure-as-Code (IaC) tooling, causing the actual state to diverge from the declared state. This project provides:
+**Configuration drift** occurs when infrastructure resources are manually modified outside of Infrastructure-as-Code workflows, causing operational inconsistencies and security vulnerabilities. This tool provides:
 
-- **Terraform-managed AWS infrastructure** across multiple environments
-- **Automated drift detection** using Python
-- **CI/CD pipelines** with GitHub Actions for validation and deployment
-- **Automated alerting** when drift is detected
-- **Comprehensive reporting** with console and JSON outputs
-
----
-
-## 🏗️ Architecture
-
-### High-Level System Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     Developer Workstation                    │
-│              (Infrastructure Changes via Git)                │
-└───────────────────────────┬─────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│                       Git Repository                         │
-│                         (GitHub)                             │
-│                  Single Source of Truth                      │
-└─────┬──────────────────────────────────────────┬────────────┘
-      │                                           │
-      │ (PR triggers)                             │ (Merge/Schedule)
-      ▼                                           ▼
-┌─────────────────────┐              ┌─────────────────────────┐
-│  Terraform Plan     │              │  Drift Detection        │
-│  (GitHub Actions)   │              │  (GitHub Actions)       │
-│                     │              │  Runs every 6 hours     │
-│  - Validate         │              └──────────┬──────────────┘
-│  - Plan             │                         │
-│  - Comment on PR    │                         │ (Detects drift)
-└─────────────────────┘                         ▼
-                                     ┌─────────────────────────┐
-                                     │  Alert & Report         │
-┌─────────────────────┐              │  - GitHub Issues        │
-│  Terraform Apply    │              │  - JSON Reports         │
-│  (GitHub Actions)   │              │  - Artifacts            │
-│                     │              └─────────────────────────┘
-│  - Plan             │
-│  - Apply            │
-└─────┬───────────────┘
-      │
-      ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    AWS Infrastructure                        │
-│                                                              │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │                 Dev Environment                       │  │
-│  │                                                       │  │
-│  │  ┌─────────────┐  ┌──────────────┐  ┌────────────┐ │  │
-│  │  │    VPC      │  │  EC2 Instance│  │  S3 Bucket │ │  │
-│  │  │             │  │  (t3.micro)  │  │            │ │  │
-│  │  │ - Subnets   │  │              │  │ App Data   │ │  │
-│  │  │ - IGW       │  │ Web Server   │  │            │ │  │
-│  │  │ - Route     │  │              │  │            │ │  │
-│  │  │   Tables    │  └──────────────┘  └────────────┘ │  │
-│  │  │ - Security  │                                    │  │
-│  │  │   Groups    │                                    │  │
-│  │  └─────────────┘                                    │  │
-│  └──────────────────────────────────────────────────────┘  │
-│                                                              │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │         Terraform State Management                    │  │
-│  │                                                       │  │
-│  │  ┌──────────────┐         ┌──────────────┐          │  │
-│  │  │  S3 Bucket   │         │  DynamoDB    │          │  │
-│  │  │  (State)     │         │  (Locking)   │          │  │
-│  │  └──────────────┘         └──────────────┘          │  │
-│  └──────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Drift Detection Flow
-
-```
-┌─────────────────────────────────────────┐
-│  Scheduled Trigger (Every 6 hours)      │
-│  OR Manual Trigger                      │
-└───────────────┬─────────────────────────┘
-                │
-                ▼
-┌─────────────────────────────────────────┐
-│  GitHub Actions: Drift Detection        │
-│                                         │
-│  1. Checkout code                       │
-│  2. Setup AWS credentials               │
-│  3. Setup Terraform                     │
-│  4. Setup Python environment            │
-└───────────────┬─────────────────────────┘
-                │
-                ▼
-┌─────────────────────────────────────────┐
-│  Python Drift Detector                  │
-│                                         │
-│  For each environment:                  │
-│    - Run terraform init                 │
-│    - Run terraform plan                 │
-│      (with -detailed-exitcode)          │
-│    - Parse plan output                  │
-│    - Analyze drift                      │
-│    - Generate reports                   │
-└───────────────┬─────────────────────────┘
-                │
-                ▼
-        ┌───────┴──────┐
-        │              │
-        ▼              ▼
-┌──────────────┐  ┌──────────────┐
-│ Exit Code 0  │  │ Exit Code 2  │
-│ No Drift     │  │ Drift Found! │
-└──────┬───────┘  └──────┬───────┘
-       │                 │
-       │                 ▼
-       │      ┌─────────────────────┐
-       │      │ Create GitHub Issue │
-       │      │ - Title: 🚨 Drift   │
-       │      │ - Details           │
-       │      │ - Labels            │
-       │      └─────────────────────┘
-       │                 │
-       │                 ▼
-       │      ┌─────────────────────┐
-       │      │ Upload Artifacts    │
-       │      │ - JSON reports      │
-       │      │ - Console output    │
-       │      └─────────────────────┘
-       │                 │
-       └────────┬────────┘
-                ▼
-        ┌──────────────┐
-        │  Workflow    │
-        │  Complete    │
-        └──────────────┘
-```
-
-### Component Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                   Drift Detection System                     │
-│                                                              │
-│  ┌────────────────────────────────────────────────────┐    │
-│  │              Python Application                     │    │
-│  │                                                     │    │
-│  │  ┌──────────────┐  ┌──────────────┐               │    │
-│  │  │   main.py    │→ │  config.yaml │               │    │
-│  │  │ (Orchestrator)│  │ (Settings)   │               │    │
-│  │  └──────┬───────┘  └──────────────┘               │    │
-│  │         │                                          │    │
-│  │         ▼                                          │    │
-│  │  ┌──────────────────────────────────────────┐    │    │
-│  │  │      terraform_client.py                  │    │    │
-│  │  │  - init()                                 │    │    │
-│  │  │  - plan()                                 │    │    │
-│  │  │  - parse_plan_output()                    │    │    │
-│  │  └──────────────┬───────────────────────────┘    │    │
-│  │                 │                                 │    │
-│  │                 ▼                                 │    │
-│  │  ┌──────────────────────────────────────────┐    │    │
-│  │  │      drift_analyzer.py                    │    │    │
-│  │  │  - analyze_drift()                        │    │    │
-│  │  │  - calculate_severity()                   │    │    │
-│  │  │  - generate_recommendations()             │    │    │
-│  │  └──────────────┬───────────────────────────┘    │    │
-│  │                 │                                 │    │
-│  │                 ▼                                 │    │
-│  │  ┌──────────────────────────────────────────┐    │    │
-│  │  │          Reporters                        │    │    │
-│  │  │                                           │    │    │
-│  │  │  ┌─────────────────┐  ┌──────────────┐  │    │    │
-│  │  │  │ console_reporter│  │json_reporter │  │    │    │
-│  │  │  │ - Colored output│  │ - JSON files │  │    │    │
-│  │  │  └─────────────────┘  └──────────────┘  │    │    │
-│  │  └──────────────────────────────────────────┘    │    │
-│  └────────────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────────┘
-```
+- **🔍 Intelligent Drift Detection** - Automated scanning with configurable schedules
+- **📊 Visual Reporting** - Interactive HTML dashboards with Chart.js visualizations
+- **🚨 Multi-Channel Alerting** - Slack, SNS, and email notifications
+- **📈 Historical Tracking** - DynamoDB-backed drift history and trend analysis
+- **🔧 Actionable Remediation** - Specific Terraform commands to fix detected drift
+- **🌐 Dependency Mapping** - Resource relationship visualization
+- **⚙️ Smart Filtering** - Policy-based drift categorization
+- **🔒 Security-Focused** - Severity scoring emphasizing security-critical resources
 
 ---
 
 ## ✨ Features
 
-### Core Features
-- ✅ **Multi-Environment Support** - Separate dev, staging, and production environments
-- ✅ **Automated Drift Detection** - Runs every 6 hours automatically
-- ✅ **Manual Drift Detection** - Run on-demand via CLI or GitHub Actions
-- ✅ **Comprehensive Reporting** - Console output with colors and JSON reports
-- ✅ **Severity Classification** - Categorizes drift as Critical, Warning, or Info
-- ✅ **GitHub Integration** - Creates issues automatically when drift is detected
+### 🎯 Core Detection Engine
 
-### Infrastructure Features
-- ✅ **Modular Terraform Design** - Reusable networking and compute modules
-- ✅ **Remote State Management** - S3 backend with DynamoDB locking
-- ✅ **Free Tier Optimized** - Designed to run within AWS free tier limits
-- ✅ **Security Best Practices** - Proper security groups, IAM roles, encryption
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **Severity Scoring System** | Classifies drift as Critical, High, Medium, or Low based on resource type and attributes | ✅ Implemented |
+| **DynamoDB History Tracking** | Stores drift scan results with timestamps for trend analysis | ✅ Implemented |
+| **Smart Policy Filtering** | Configurable rules to ignore expected drift and highlight critical changes | ✅ Implemented |
+| **Resource Dependency Mapping** | Generates Terraform graph visualizations showing resource relationships | ✅ Implemented |
 
-### CI/CD Features
-- ✅ **PR Validation** - Automatic `terraform plan` on pull requests
-- ✅ **Automated Deployment** - Apply changes on merge to main branch
-- ✅ **Scheduled Drift Checks** - Regular automated drift detection
-- ✅ **Artifact Storage** - Drift reports saved for 30 days
+### 📢 Alerting & Notifications
+
+| Channel | Features | Status |
+|---------|----------|--------|
+| **Slack Integration** | Rich messages with color-coding, drift summaries, top 5 resources, success alerts | ✅ Implemented |
+| **AWS SNS** | Email/SMS notifications for critical and high-severity drift | ✅ Implemented |
+| **GitHub Issues** | Automatic issue creation with detailed drift reports | ✅ Implemented |
+
+### 📊 Reporting & Visualization
+
+| Report Type | Description | Status |
+|-------------|-------------|--------|
+| **HTML Dashboard** | Interactive reports with Chart.js doughnut charts, severity breakdowns | ✅ Implemented |
+| **JSON Export** | Machine-readable drift data for integration with other tools | ✅ Implemented |
+| **Dependency Graphs** | DOT format graphs for Graphviz visualization | ✅ Implemented |
+
+### 🤖 Automation & CI/CD
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **Cron-based Scheduling** | Automated drift scans every 6 hours via crontab | ✅ Implemented |
+| **GitHub Actions Workflow** | CI/CD pipeline for automated scanning and deployment | ✅ Implemented |
+| **Terraform Plan Integration** | Seamless integration with terraform init/plan/apply workflows | ✅ Implemented |
+
+### 🔧 Remediation & Insights
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **Actionable Commands** | Specific `terraform apply -target=` suggestions for each drifted resource | ✅ Implemented |
+| **Severity-based Prioritization** | Focus on critical security and networking changes first | ✅ Implemented |
+| **Policy Engine** | Define ignored resources, critical resources, and allowed drift patterns | ✅ Implemented |
+
+---
+
+## 🏗️ Architecture
+
+### System Overview
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                    Enhanced Drift Detector                        │
+│                                                                   │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │              Core Detection Engine                          │ │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │ │
+│  │  │  Terraform   │→ │    Drift     │→ │   Severity   │    │ │
+│  │  │   Client     │  │   Analyzer   │  │    Scorer    │    │ │
+│  │  └──────────────┘  └──────────────┘  └──────────────┘    │ │
+│  │         ↓                  ↓                  ↓           │ │
+│  │  ┌──────────────────────────────────────────────────┐    │ │
+│  │  │           Policy Engine (Filtering)               │    │ │
+│  │  └────────────────────┬─────────────────────────────┘    │ │
+│  └───────────────────────┼──────────────────────────────────┘ │
+│                          ↓                                     │
+│  ┌──────────────────────────────────────────────────────────┐ │
+│  │                Output & Alerting                          │ │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐│ │
+│  │  │   HTML   │  │  Slack   │  │   SNS    │  │ History  ││ │
+│  │  │  Report  │  │  Alert   │  │  Email   │  │(DynamoDB)││ │
+│  │  └──────────┘  └──────────┘  └──────────┘  └──────────┘│ │
+│  └──────────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### Module Structure
+
+```
+enhanced_drift_detector.py (Main Orchestrator)
+    ↓
+    ├─→ modules/terraform_client.py      (Terraform operations)
+    ├─→ modules/drift_analyzer.py        (Drift detection logic)
+    ├─→ modules/policy_engine.py         (Smart filtering)
+    ├─→ modules/severity_scorer.py       (Severity classification)
+    ├─→ modules/history_tracker.py       (DynamoDB persistence)
+    ├─→ modules/notifications.py         (Slack/SNS/Email)
+    ├─→ modules/report_generator.py      (HTML/JSON reports)
+    └─→ modules/dependency_mapper.py     (Resource graphs)
+```
+
+---
+
+## 🚀 Quick Start
+
+### 1. Clone & Setup
+
+```bash
+git clone https://github.com/JEGSON/devops-drift-detector.git
+cd devops-drift-detector
+
+# Create virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Install dependencies
+pip install -r drift-detector/requirements.txt
+```
+
+### 2. Configure AWS
+
+```bash
+# Configure AWS credentials
+aws configure
+
+# Create S3 bucket for Terraform state
+BUCKET_NAME="terraform-state-drift-detector-$(date +%s)"
+aws s3 mb s3://${BUCKET_NAME} --region us-east-1
+aws s3api put-bucket-versioning --bucket ${BUCKET_NAME} --versioning-configuration Status=Enabled
+aws s3api put-bucket-encryption --bucket ${BUCKET_NAME} \
+  --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
+
+# Save bucket name
+echo "TERRAFORM_STATE_BUCKET=${BUCKET_NAME}" >> config/.env
+```
+
+### 3. Update Configuration
+
+Edit `terraform/environments/dev/main.tf` and `config/.env`:
+
+```hcl
+# terraform/environments/dev/main.tf
+backend "s3" {
+  bucket = "YOUR_BUCKET_NAME_FROM_STEP_2"
+  key    = "dev/terraform.tfstate"
+  region = "us-east-1"
+}
+```
+
+```bash
+# config/.env
+AWS_REGION=us-east-1
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
+SNS_TOPIC_ARN=arn:aws:sns:us-east-1:123456789:terraform-drift-alerts
+DYNAMODB_TABLE=terraform-drift-history
+```
+
+### 4. Deploy Infrastructure
+
+```bash
+cd terraform/environments/dev
+terraform init
+terraform apply
+```
+
+### 5. Run Drift Detector
+
+```bash
+cd ../../../
+python enhanced_drift_detector.py --environment dev --terraform-dir ./terraform/environments/dev
+```
+
+**Expected Output:**
+```
+🔍 Starting drift detection for dev...
+Running terraform init...
+Running terraform plan...
+No drift detected by Terraform.
+🕸️  Generating dependency graph...
+📄 Report generated: reports/drift_report_20260109_203307.html
+💾 Scan saved to history: scan_1767987187
+📧 Notifications sent
+
+✅ Scan complete: 0 drifts detected
+```
 
 ---
 
 ## 📦 Prerequisites
 
 ### Required Tools
-- **AWS Account** with free tier access
-- **Terraform** >= 1.6.0
-- **Python** >= 3.11
-- **Git** and **GitHub** account
+
+- **Python** 3.11 or higher
+- **Terraform** 1.0 or higher
 - **AWS CLI** configured with credentials
+- **Git** for version control
 
-### AWS Permissions Required
-- EC2 (create/modify instances, security groups)
-- VPC (create/modify VPC, subnets, route tables)
-- S3 (create/modify buckets)
-- DynamoDB (create/modify tables)
-- IAM (read-only for state management)
+### AWS Services Used
 
----
+| Service | Purpose | Cost |
+|---------|---------|------|
+| **S3** | Terraform state storage | ~$0.01/month (Free Tier eligible) |
+| **DynamoDB** | State locking + drift history | Free Tier eligible |
+| **SNS** | Email/SMS notifications | ~$0.50/1000 emails |
+| **EC2** | Example infrastructure | Free Tier eligible (t3.micro) |
 
-## 📁 Project Structure
+### Python Dependencies
 
 ```
-devops-drift-detector/
-├── README.md
-├── .gitignore
-│
-├── terraform/
-│   ├── backend/                      # State backend setup
-│   │   ├── main.tf
-│   │   └── variables.tf
-│   │
-│   ├── modules/                      # Reusable modules
-│   │   ├── networking/
-│   │   │   ├── main.tf              # VPC, subnets, IGW, security groups
-│   │   │   ├── variables.tf
-│   │   │   └── outputs.tf
-│   │   │
-│   │   └── compute/
-│   │       ├── main.tf              # EC2 instances, S3 buckets
-│   │       ├── variables.tf
-│   │       └── outputs.tf
-│   │
-│   └── environments/                 # Environment-specific configs
-│       └── dev/
-│           ├── main.tf              # Environment composition
-│           ├── variables.tf
-│           ├── outputs.tf
-│           └── terraform.tfstate    # (if using local state)
-│
-├── drift-detector/                   # Python drift detection tool
-│   ├── main.py                      # Main orchestrator
-│   ├── terraform_client.py          # Terraform operations wrapper
-│   ├── drift_analyzer.py            # Drift analysis logic
-│   ├── config.yaml                  # Local configuration
-│   ├── config.ci.yaml               # CI/CD configuration
-│   ├── requirements.txt             # Python dependencies
-│   │
-│   ├── reporters/                   # Output formatters
-│   │   ├── console_reporter.py     # Colored console output
-│   │   └── json_reporter.py        # JSON file reports
-│   │
-│   └── reports/                     # Generated reports (gitignored)
-│       └── *.json
-│
-└── .github/
-    └── workflows/                    # CI/CD pipelines
-        ├── terraform-plan.yml       # PR validation
-        ├── terraform-apply.yml      # Deployment
-        └── drift-detection.yml      # Scheduled drift checks
+boto3>=1.28.0           # AWS SDK
+python-terraform>=0.10.1 # Terraform wrapper
+pyyaml>=6.0             # YAML config parsing
+colorama>=0.4.6         # Terminal colors
+tabulate>=0.9.0         # Table formatting
+python-dotenv>=1.0.0    # Environment variables
+requests>=2.31.0        # HTTP client (Slack)
 ```
 
 ---
 
-## 🚀 Setup Instructions
+## 🔧 Installation
 
-### Step 1: Clone the Repository
+### Option 1: Standard Installation
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/devops-drift-detector.git
+# Clone repository
+git clone https://github.com/JEGSON/devops-drift-detector.git
 cd devops-drift-detector
-```
-
-### Step 2: Configure AWS Credentials
-
-```bash
-# Configure AWS CLI
-aws configure
-
-# Verify credentials
-aws sts get-caller-identity
-```
-
-### Step 3: Create Terraform State Backend
-
-```bash
-cd terraform/backend
-
-# Initialize and create state backend
-terraform init
-terraform apply
-
-# Note the output values (bucket name, DynamoDB table)
-```
-
-### Step 4: Update Backend Configuration
-
-Edit `terraform/environments/dev/main.tf` and update the backend block with your actual S3 bucket name from Step 3.
-
-### Step 5: Deploy Dev Environment
-
-```bash
-cd ../environments/dev
-
-# Initialize Terraform with remote backend
-terraform init
-
-# Review the plan
-terraform plan
-
-# Deploy infrastructure
-terraform apply
-```
-
-### Step 6: Set Up Python Drift Detector
-
-```bash
-cd ../../../drift-detector
 
 # Create virtual environment
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+python3 -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 # Install dependencies
-pip install -r requirements.txt
+pip install -r drift-detector/requirements.txt
 
-# Update config.yaml with your paths
-# Test drift detection
-python main.py
+# Copy example configs
+cp config/.env.example config/.env
+# Edit config/.env with your values
 ```
 
-### Step 7: Configure GitHub Actions
+### Option 2: Docker (Coming Soon)
 
-1. **Add AWS credentials to GitHub Secrets:**
-   - Go to repository Settings → Secrets and variables → Actions
-   - Add: `AWS_ACCESS_KEY_ID`
-   - Add: `AWS_SECRET_ACCESS_KEY`
-   - Add: `AWS_REGION` (e.g., `us-east-1`)
-
-2. **Push workflows to GitHub:**
 ```bash
-git add .github/workflows/
-git commit -m "Add CI/CD workflows"
-git push origin main
+docker pull jegson/drift-detector:latest
+docker run -v $(pwd)/config:/app/config drift-detector
+```
+
+---
+
+## ⚙️ Configuration
+
+### Main Configuration (`config/config.yaml`)
+
+```yaml
+aws:
+  region: us-east-1
+  profile: default
+
+scanning:
+  schedule: "0 */6 * * *"  # Every 6 hours
+  parallel_checks: 5
+  timeout: 300
+
+severity:  # Now loaded from config/severity_rules.yaml
+  critical:
+    - aws_security_group
+    - aws_iam_role
+    - aws_iam_policy
+  high:
+    - aws_db_instance
+    - aws_s3_bucket
+  medium:
+    - aws_instance
+    - aws_lambda_function
+  low:
+    - aws_s3_bucket_object
+
+notifications:
+  slack_webhook: "${SLACK_WEBHOOK_URL}"
+  sns_topic_arn: "${SNS_TOPIC_ARN}"
+  alert_on_severity:
+    - critical
+    - high
+
+reporting:
+  format: html
+  output_dir: reports
+  retention_days: 90
+
+history:
+  dynamodb_table: terraform-drift-history
+  enabled: true
+```
+
+### Severity Rules (`config/severity_rules.yaml`)
+
+Customize resource severity classifications:
+
+```yaml
+severity:
+  critical:
+    - aws_iam_role
+    - aws_iam_policy
+    - aws_security_group
+    - aws_vpc
+    - aws_kms_key
+  
+  high:
+    - aws_db_instance
+    - aws_rds_cluster
+    - aws_s3_bucket
+    - aws_eks_cluster
+  
+  medium:
+    - aws_instance
+    - aws_lambda_function
+    - aws_dynamodb_table
+  
+  low:
+    - aws_cloudwatch_log_group
+    - aws_s3_bucket_object
+```
+
+### Environment Variables (`config/.env`)
+
+```bash
+# AWS Configuration
+AWS_PROFILE=default
+AWS_REGION=us-east-1
+
+# Slack Integration
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
+
+# SNS Configuration
+SNS_TOPIC_ARN=arn:aws:sns:us-east-1:123456789:terraform-drift-alerts
+
+# DynamoDB
+DYNAMODB_TABLE=terraform-drift-history
+
+# Terraform State
+TERRAFORM_STATE_BUCKET=terraform-state-drift-detector-1234567890
 ```
 
 ---
 
 ## 💻 Usage
 
-### Manual Drift Detection (Local)
+### Manual Drift Detection
 
 ```bash
-cd drift-detector
-source venv/bin/activate
-python main.py
+# Activate virtual environment
+source .venv/bin/activate
+
+# Run for specific environment
+python enhanced_drift_detector.py --environment dev --terraform-dir ./terraform/environments/dev
+
+# Skip notifications (testing)
+python enhanced_drift_detector.py --environment dev --terraform-dir ./terraform/environments/dev --no-notify
 ```
 
-### Create Intentional Drift (For Testing)
+### Automated Scheduling (Cron)
 
-1. Go to AWS Console → EC2 → Instances
-2. Select your `dev-web-server` instance
-3. Add a tag: `ManualChange = true`
-4. Run drift detector again - it should detect the change!
-
-### Fix Detected Drift
+The project includes a wrapper script for cron automation:
 
 ```bash
-cd terraform/environments/dev
-terraform apply  # This will remove the manual tag
+# View cron job
+crontab -l
+
+# Expected output:
+# 0 */6 * * * /Users/wealth/devops-drift-detector/scripts/run_drift_scan.sh
+
+# Check logs
+tail -f logs/cron.log
 ```
 
-### Trigger Drift Detection in CI/CD
+### Creating Drift for Testing
 
-1. Go to GitHub repository → Actions
-2. Select "Drift Detection" workflow
-3. Click "Run workflow"
+1. **Apply infrastructure first:**
+   ```bash
+   cd terraform/environments/dev
+   terraform apply
+   ```
 
-### Create a Pull Request
+2. **Cause drift manually:**
+   - Go to AWS Console → EC2 → Instances
+   - Select your instance
+   - Add/modify a tag: `Manual=test`
 
-```bash
-# Make a change to infrastructure
-git checkout -b feature/add-new-resource
-echo '# New resource' >> terraform/environments/dev/main.tf
+3. **Run detector:**
+   ```bash
+   cd ../../..
+   python enhanced_drift_detector.py --environment dev --terraform-dir ./terraform/environments/dev
+   ```
 
-# Commit and push
-git add .
-git commit -m "Add new resource"
-git push origin feature/add-new-resource
+4. **Check Slack for alert** with detected drift details!
 
-# Create PR on GitHub - Terraform plan will run automatically
-```
+5. **Fix drift:**
+   ```bash
+   cd terraform/environments/dev
+   terraform apply  # Removes manual changes
+   ```
 
 ---
 
-## 🔄 CI/CD Workflows
+## 🔄 CI/CD Pipeline
 
-### 1. Terraform Plan (Pull Request Validation)
-
-**Trigger:** On pull request to `main` branch  
-**Purpose:** Validate Terraform changes before merge
-
-**Steps:**
-1. Checkout code
-2. Configure AWS credentials
-3. Run `terraform fmt -check`
-4. Run `terraform validate`
-5. Run `terraform plan`
-6. Post plan as PR comment
-
-### 2. Terraform Apply (Deployment)
-
-**Trigger:** On push to `main` branch OR manual trigger  
-**Purpose:** Deploy infrastructure changes
-
-**Steps:**
-1. Checkout code
-2. Configure AWS credentials
-3. Run `terraform plan`
-4. Run `terraform apply -auto-approve`
-5. Output infrastructure details
-
-### 3. Drift Detection (Scheduled)
-
-**Trigger:** Every 6 hours OR manual trigger  
-**Purpose:** Detect configuration drift
-
-**Steps:**
-1. Checkout code
-2. Setup Python environment
-3. Run drift detector
-4. Upload reports as artifacts
-5. Create GitHub issue if drift detected
-
----
-
-## ⚙️ Configuration
-
-### Drift Detector Configuration (`config.yaml`)
+### GitHub Actions Workflow (`.github/workflows/drift_scan.yml`)
 
 ```yaml
-# AWS Configuration
-aws:
-  region: us-east-1
-  profile: default
+name: Terraform Drift Detection
 
-# Terraform environments to monitor
-terraform:
-  environments:
-    - name: dev
-      path: /path/to/terraform/environments/dev
-      enabled: true
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
+  workflow_dispatch:       # Manual trigger
 
-# Detection settings
-detection:
-  check_interval_hours: 6
-  ignore_resources: []
-  ignore_attributes:
-    - "tags.LastModified"
-    - "metadata"
-
-# Reporting options
-reporting:
-  formats:
-    - console  # Colored terminal output
-    - json     # JSON file reports
-  output_dir: ./reports
-  min_severity: info  # info, warning, critical
-
-# Alerting (future enhancement)
-alerting:
-  enabled: false
+jobs:
+  drift_scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v3
+      
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+      
+      - name: Run Drift Detector
+        run: |
+          python enhanced_drift_detector.py \
+            --environment production \
+            --terraform-dir ./terraform/environments/prod
+      
+      - name: Upload Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: drift-report
+          path: reports/*.html
 ```
 
-### Terraform Variables
+### Required GitHub Secrets
 
-**Environment-specific:** `terraform/environments/dev/variables.tf`
+| Secret Name | Description | Example |
+|-------------|-------------|---------|
+| `AWS_ROLE_ARN` | IAM role for OIDC authentication | `arn:aws:iam::123456789:role/GithubActions` |
+| `AWS_ACCESS_KEY_ID` | Alternative to OIDC | `AKIAIOSFODNN7EXAMPLE` |
+| `AWS_SECRET_ACCESS_KEY` | Alternative to OIDC | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
+| `SLACK_WEBHOOK_URL` | Slack incoming webhook | `https://hooks.slack.com/services/...` |
+| `SNS_TOPIC_ARN` | SNS topic for alerts | `arn:aws:sns:us-east-1:...` |
 
-```hcl
-variable "aws_region" {
-  default = "us-east-1"
-}
+---
 
-variable "environment" {
-  default = "dev"
-}
+## 📢 Notifications
 
-variable "instance_type" {
-  default = "t3.micro"  # Free tier eligible
-}
+### Slack Integration
 
-variable "vpc_cidr" {
-  default = "10.0.0.0/16"
-}
+Enhanced Slack notifications with:
+
+- **Color-coded alerts** (Red=Critical, Orange=High, Yellow=Medium, Green=Success)
+- **Drift summary** with counts (Total Resources, Drifted Resources, Critical Issues)
+- **Top 5 drifted resources** prioritized by severity score
+- **Success messages** when no drift detected
+- **Direct link** to HTML report
+
+**Example Slack Message:**
+
+```
+🔴 Terraform Drift Report: DEV
+Severity: HIGH
+
+Total Resources: 8
+Drifted Resources: 3
+Critical Issues: 1
+High Severity Issues: 2
+
+Top Drifts (Priority):
+🔥 aws_security_group.web (MODIFY)
+⚠️ aws_instance.app_server (MODIFY)
+⚠️ aws_s3_bucket.data (MODIFY)
+
+View full report: file:///path/to/reports/drift_report_*.html
+```
+
+### SNS/Email Notifications
+
+Text-based notifications for critical and high-severity drift:
+
+```
+Subject: Terraform Drift - CRITICAL
+
+Drift Detection Summary:
+- Environment: production
+- Drifted Resources: 5
+- Highest Severity: critical
+- Critical Issues: 2
+- High Issues: 3
+
+View detailed report: [Link]
 ```
 
 ---
 
-## 🔍 How It Works
+## 📊 Reporting
 
-### Drift Detection Algorithm
+### HTML Dashboard
 
-1. **Initialization**
-   - Load configuration from `config.yaml`
-   - Identify enabled environments
+Interactive visual reports with:
 
-2. **For Each Environment**
-   - Initialize Terraform (`terraform init`)
-   - Run plan with detailed exit code (`terraform plan -detailed-exitcode`)
-   - Parse exit code:
-     - `0` = No changes (no drift)
-     - `1` = Error
-     - `2` = Changes detected (drift!)
+- **Chart.js doughnut chart** showing severity distribution
+- **Responsive design** for mobile and desktop
+- **Severity badges** color-coded by level
+- **Detailed drift table** with resource address, type, change, and details
 
-3. **Drift Analysis**
-   - Parse plan output to extract:
-     - Resources to add
-     - Resources to modify
-     - Resources to destroy
-   - Calculate severity:
-     - **Critical:** Resources deleted manually
-     - **Warning:** Multiple resources modified
-     - **Info:** Minor changes
+**Report Location:** `reports/index.html` (latest) and `reports/drift_report_TIMESTAMP.html`
 
-4. **Reporting**
-   - Generate console report (colored output)
-   - Save JSON report to disk
-   - Upload to GitHub Actions artifacts (in CI)
-   - Create GitHub issue if drift detected
+### JSON Export
 
-5. **Recommendations**
-   - Suggest running `terraform apply` to fix drift
-   - Highlight critical issues (deletions)
-   - Remind about IaC best practices
+Machine-readable format for integration:
 
-### Severity Levels
+```json
+{
+  "summary": {
+    "environment": "dev",
+    "timestamp": "2026-01-09T20:33:07",
+    "total_resources": 8,
+    "drifted_resources": 3,
+    "drift_percentage": 37.5,
+    "critical_count": 1,
+    "high_count": 2,
+    "medium_count": 0,
+    "low_count": 0
+  },
+  "drifts": [
+    {
+      "resource_address": "aws_security_group.web",
+      "resource_type": "aws_security_group",
+      "change_type": "update",
+      "severity": "critical",
+      "score": 4,
+      "attribute": "ingress",
+      "details": "Security rule modified"
+    }
+  ]
+}
+```
 
-| Severity | Condition | Action Required |
-|----------|-----------|-----------------|
-| 🚨 **Critical** | Resources deleted manually | Immediate action - run terraform apply |
-| ⚠️ **Warning** | 3+ resources modified | Review and apply soon |
-| ℹ️ **Info** | Minor changes or additions | Review at convenience |
+### Dependency Graph
+
+Generated DOT file for Graphviz visualization:
+
+```bash
+# View dependencies
+cat reports/dependencies.dot
+
+# Generate PNG (requires Graphviz)
+dot -Tpng reports/dependencies.dot -o reports/dependencies.png
+open reports/dependencies.png
+```
 
 ---
 
 ## 🐛 Troubleshooting
 
-### Issue: Drift detector can't find Terraform directory
+### Common Issues
 
-**Solution:** Update `config.yaml` with the correct absolute path:
-```yaml
-terraform:
-  environments:
-    - name: dev
-      path: /absolute/path/to/terraform/environments/dev
-```
+#### 1. Slack Notifications Not Working
 
-### Issue: AWS credentials not working in GitHub Actions
+**Symptom:** `Failed to send Slack notification: Invalid URL`
 
-**Solution:** Verify GitHub Secrets are set correctly:
-- Repository → Settings → Secrets and variables → Actions
-- Check `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` are present
-
-### Issue: Terraform plan fails with "instance type not eligible for free tier"
-
-**Solution:** Use `t3.micro` or `t2.micro` instance type:
-```hcl
-variable "instance_type" {
-  default = "t3.micro"
-}
-```
-
-### Issue: State locking errors
-
-**Solution:** Check DynamoDB table exists and has correct permissions:
+**Solution:**
 ```bash
-aws dynamodb describe-table --table-name terraform-locks-drift-detector
+# Check config/.env
+cat config/.env | grep SLACK_WEBHOOK_URL
+
+# Should show real webhook, not ${SLACK_WEBHOOK_URL}
+# If incorrect, update:
+echo "SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/ACTUAL/URL" >> config/.env
 ```
 
-### Issue: Drift detector shows no drift but infrastructure was changed
+#### 2. DynamoDB Table Not Found
 
-**Solution:** Ensure Terraform state is up to date:
+**Symptom:** `ResourceNotFoundException: Requested resource not found`
+
+**Solution:**
 ```bash
+# Create DynamoDB table
+aws dynamodb create-table \
+  --table-name terraform-drift-history \
+  --attribute-definitions \
+    AttributeName=scan_id,AttributeType=S \
+    AttributeName=timestamp,AttributeType=N \
+  --key-schema \
+    AttributeName=scan_id,KeyType=HASH \
+    AttributeName=timestamp,KeyType=RANGE \
+  --billing-mode PAY_PER_REQUEST \
+  --region us-east-1
+```
+
+#### 3. S3 Backend Bucket Errors
+
+**Symptom:** `Error: Failed to get existing workspaces`
+
+**Solution:**
+```bash
+# List buckets
+aws s3 ls | grep terraform-state
+
+# If bucket doesn't exist, create one:
+BUCKET_NAME="terraform-state-drift-detector-$(date +%s)"
+aws s3 mb s3://${BUCKET_NAME} --region us-east-1
+
+# Update backend in terraform/environments/dev/main.tf
+# Then reinitialize:
 cd terraform/environments/dev
-terraform refresh
-terraform plan
+terraform init -reconfigure
+```
+
+#### 4. Permission Denied on Cron Script
+
+**Symptom:** Cron job not executing
+
+**Solution:**
+```bash
+# Make script executable
+chmod +x scripts/run_drift_scan.sh
+
+# Verify cron entry
+crontab -l
+
+# Test manually
+./scripts/run_drift_scan.sh
 ```
 
 ---
 
-## 🎯 Future Enhancements
+## 🔬 Advanced Topics
 
-- [ ] **Slack Integration** - Send drift alerts to Slack channels
-- [ ] **Auto-Remediation** - Automatically apply fixes for certain drift types
-- [ ] **Multi-Environment** - Add staging and production environments
-- [ ] **Dashboard** - Web UI for visualizing drift history
-- [ ] **CloudWatch Metrics** - Send drift metrics to AWS CloudWatch
-- [ ] **Webhook Support** - Trigger custom actions on drift detection
-- [ ] **Email Notifications** - Send detailed reports via email
-- [ ] **Drift Trends** - Track and analyze drift patterns over time
+### Custom Severity Rules
+
+Extend `config/severity_rules.yaml` with your organization's standards:
+
+```yaml
+severity:
+  critical:
+    - aws_security_group
+    - aws_iam_*        # Wildcards supported
+    - "*_kms_*"
+    - custom_module.database
+```
+
+### Policy-Based Filtering
+
+Configure `modules/policy_engine.py` to ignore expected drift:
+
+```python
+# Example: Ignore auto-scaling group instance counts
+policies:
+  ignore_resources:
+    - "aws_autoscaling_group.*.desired_capacity"
+  
+  critical_resources:
+    - "aws_security_group.*"
+    - "module.database.*"
+```
+
+### Multi-Environment Scanning
+
+```bash
+# Scan all environments
+for env in dev staging prod; do
+  python enhanced_drift_detector.py \
+    --environment $env \
+    --terraform-dir ./terraform/environments/$env
+done
+```
+
+### AWS EventBridge Integration (Alternative to Cron)
+
+```bash
+# Create EventBridge rule
+aws events put-rule \
+  --name drift-detector-schedule \
+  --schedule-expression "rate(6 hours)" \
+  --state ENABLED
+
+# Add target (Lambda function to invoke detector)
+aws events put-targets \
+  --rule drift-detector-schedule \
+  --targets "Id"="1","Arn"="arn:aws:lambda:..."
+```
 
 ---
 
-## 📚 Learning Resources
+## 📂 Project Structure
 
-### Terraform
-- [Terraform Documentation](https://www.terraform.io/docs)
-- [AWS Provider](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
-
-### GitHub Actions
-- [GitHub Actions Documentation](https://docs.github.com/en/actions)
-- [Workflow Syntax](https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions)
-
-### AWS
-- [AWS Free Tier](https://aws.amazon.com/free/)
-- [EC2 Documentation](https://docs.aws.amazon.com/ec2/)
+```
+devops-drift-detector/
+├── .github/
+│   └── workflows/
+│       └── drift_scan.yml           # CI/CD pipeline
+│
+├── config/
+│   ├── config.yaml                  # Main configuration
+│   ├── severity_rules.yaml          # Resource severity mappings
+│   └── .env                         # Environment variables (gitignored)
+│
+├── modules/                         # Core Python modules
+│   ├── terraform_client.py          # Terraform operations wrapper
+│   ├── drift_analyzer.py            # Drift detection logic
+│   ├── policy_engine.py             # Smart filtering engine
+│   ├── severity_scorer.py           # Severity classification
+│   ├── history_tracker.py           # DynamoDB persistence
+│   ├── notifications.py             # Slack/SNS/Email alerts
+│   ├── report_generator.py          # HTML/JSON report generation
+│   └── dependency_mapper.py         # Resource graph generation
+│
+├── scripts/
+│   └── run_drift_scan.sh            # Cron wrapper script
+│
+├── terraform/
+│   ├── environments/
+│   │   ├── dev/
+│   │   │   ├── main.tf              # Dev environment config
+│   │   │   ├── variables.tf
+│   │   │   └── outputs.tf
+│   │   ├── staging/                 # (Optional)
+│   │   └── prod/                    # (Optional)
+│   │
+│   └── modules/
+│       ├── networking/              # VPC, subnets, security groups
+│       └── compute/                 # EC2, S3, app resources
+│
+├── reports/                         # Generated reports (gitignored)
+│   ├── index.html                   # Latest report
+│   ├── drift_report_*.html          # Historical reports
+│   └── dependencies.dot             # Dependency graph
+│
+├── logs/                            # Log files (gitignored)
+│   └── cron.log                     # Cron execution logs
+│
+├── enhanced_drift_detector.py       # Main entry point
+├── README.md                        # This file
+├── requirements.txt                 # Python dependencies
+└── .gitignore
+```
 
 ---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please follow these steps:
+Contributions are welcome! Please follow these guidelines:
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+### Development Setup
+
+```bash
+# Fork and clone
+git clone https://github.com/YOUR_USERNAME/devops-drift-detector.git
+cd devops-drift-detector
+
+# Create feature branch
+git checkout -b feature/your-feature-name
+
+# Install dev dependencies
+pip install -r drift-detector/requirements.txt
+pip install pytest black pylint
+
+# Run tests
+pytest tests/
+
+# Format code
+black modules/ enhanced_drift_detector.py
+
+# Lint
+pylint modules/
+```
+
+### Pull Request Process
+
+1. **Create a feature branch** from `main`
+2. **Write tests** for new functionality
+3. **Update documentation** (README, docstrings)
+4. **Run linters** and ensure code quality
+5. **Submit PR** with clear description of changes
+6. **Address review comments**
 
 ---
 
 ## 📄 License
 
-This project is licensed under the MIT License.
-
----
-
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
 ## 🙏 Acknowledgments
 
-- Terraform by HashiCorp
-- AWS Cloud Platform
-- GitHub Actions
-- Python community
+- **HashiCorp Terraform** - Infrastructure as Code platform
+- **AWS** - Cloud infrastructure provider
+- **Chart.js** - JavaScript charting library
+- **Python Community** - Amazing ecosystem and tools
+
+---
+
+## 📚 Additional Resources
+
+### Documentation
+
+- [Terraform Documentation](https://www.terraform.io/docs)
+- [AWS Provider](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
+- [boto3 Documentation](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html)
+
+### Related Projects
+
+- [terraform-compliance](https://terraform-compliance.com/) - BDD-style compliance testing
+- [tfsec](https://github.com/aquasecurity/tfsec) - Static analysis security scanner
+- [terraformer](https://github.com/GoogleCloudPlatform/terraformer) - Import existing infrastructure
 
 ---
 
 ## 📞 Support
 
-If you encounter any issues or have questions:
+For issues, questions, or feature requests:
 
-1. Check the [Troubleshooting](#troubleshooting) section
-2. Open an issue on GitHub
-3. Review existing issues for solutions
+1. **Check Documentation** - Review this README and troubleshooting section
+2. **Search Issues** - Look for similar problems in [GitHub Issues](https://github.com/JEGSON/devops-drift-detector/issues)
+3. **Open New Issue** - Provide detailed information (error messages, configuration, steps to reproduce)
+4. **Discussions** - Join community discussions for general questions
 
 ---
 
-**Built with ❤️ for DevOps Engineers**
+## 🎯 Roadmap
+
+### Upcoming Features
+
+- [ ] **Multi-Cloud Support** - Azure, GCP drift detection
+- [ ] **Web Dashboard** - React-based UI for drift monitoring
+- [ ] **Machine Learning** - Predict drift patterns
+- [ ] **Auto-Remediation** - Automatically apply fixes for low-risk drift
+- [ ] **Compliance Reporting** - SOC2, HIPAA, PCI-DSS compliance checks
+- [ ] **Terraform Cloud Integration** - Native TFC/TFE support
+
+---
+
+**Built with ❤️ by DevOps Engineers, for DevOps Engineers**
+
+**Live Demo:** [View Sample Report](reports/index.html)  
+**GitHub:** [JEGSON/devops-drift-detector](https://github.com/JEGSON/devops-drift-detector)
